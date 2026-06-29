@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+
+# Compiled output / Eclipse
+bin/
+*.class
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Local runtime data (SQLite store is created under the user's home, never the repo)
+*.sqlite
+*.sqlite-journal

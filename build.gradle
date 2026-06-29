@@ -1,0 +1,152 @@
+plugins {
+    id 'application'
+    id 'java'
+    id 'jacoco'
+    id 'org.openjfx.javafxplugin' version '0.0.14'
+}
+
+group = 'com.valamis.learning'
+version = '1.0.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+dependencies {
+    implementation 'org.xerial:sqlite-jdbc:3.46.0.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+}
+
+application {
+    mainClass = 'com.valamis.learning.taskreminder.TaskReminderApplication'
+}
+
+def macAppIcon = layout.projectDirectory.file('src/main/resources/com/valamis/learning/taskreminder/icons/app-icon.icns')
+
+javafx {
+    version = '17.0.12'
+    modules = ['javafx.controls', 'javafx.fxml']
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    testLogging {
+        events 'failed', 'skipped'
+        exceptionFormat 'full'
+    }
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+// UI controllers and the application bootstrap hold no business logic (Humble Object
+// pattern); they require a JavaFX harness to exercise and are excluded from the
+// coverage figure and gate so the number reflects testable logic.
+def coverageExclusions = [
+        '**/TaskReminderController*',
+        '**/TaskReminderApplication*',
+        '**/UserGuideText*',
+]
+
+jacocoTestReport {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+        html.required = true
+    }
+    classDirectories.setFrom(files(classDirectories.files.collect {
+        fileTree(dir: it, exclude: coverageExclusions)
+    }))
+}
+
+jacocoTestCoverageVerification {
+    dependsOn tasks.named('test')
+    classDirectories.setFrom(files(classDirectories.files.collect {
+        fileTree(dir: it, exclude: coverageExclusions)
+    }))
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.80
+            }
+            limit {
+                counter = 'BRANCH'
+                value = 'COVEREDRATIO'
+                minimum = 0.70
+            }
+        }
+    }
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('jacocoTestCoverageVerification')
+}
+
+tasks.register('packageMacApp', Exec) {
+    group = 'distribution'
+    description = 'Creates a macOS .app image using jpackage.'
+    dependsOn tasks.named('installDist')
+
+    def appName = 'Daily Task Reminder'
+    def inputDir = layout.buildDirectory.dir('install/task-reminder/lib')
+    def outputDir = layout.buildDirectory.dir('jpackage/app')
+
+    doFirst {
+        delete(outputDir)
+    }
+
+    commandLine(
+            'jpackage',
+            '--type', 'app-image',
+            '--name', appName,
+            '--input', inputDir.get().asFile.absolutePath,
+            '--module-path', inputDir.get().asFile.absolutePath,
+            '--add-modules', 'javafx.controls,javafx.fxml,java.sql',
+            '--main-jar', "task-reminder-${version}.jar",
+            '--main-class', application.mainClass.get(),
+            '--dest', outputDir.get().asFile.absolutePath,
+            '--app-version', version.toString().replace('-SNAPSHOT', ''),
+            '--vendor', 'Valamis',
+            '--mac-package-name', appName,
+            '--icon', macAppIcon.asFile.absolutePath
+    )
+}
+
+tasks.register('packageMacDmg', Exec) {
+    group = 'distribution'
+    description = 'Creates a macOS .dmg installer using jpackage.'
+    dependsOn tasks.named('installDist')
+
+    def appName = 'Daily Task Reminder'
+    def inputDir = layout.buildDirectory.dir('install/task-reminder/lib')
+    def outputDir = layout.buildDirectory.dir('jpackage/dmg')
+
+    doFirst {
+        delete(outputDir)
+    }
+
+    commandLine(
+            'jpackage',
+            '--type', 'dmg',
+            '--name', appName,
+            '--input', inputDir.get().asFile.absolutePath,
+            '--module-path', inputDir.get().asFile.absolutePath,
+            '--add-modules', 'javafx.controls,javafx.fxml,java.sql',
+            '--main-jar', "task-reminder-${version}.jar",
+            '--main-class', application.mainClass.get(),
+            '--dest', outputDir.get().asFile.absolutePath,
+            '--app-version', version.toString().replace('-SNAPSHOT', ''),
+            '--vendor', 'Valamis',
+            '--mac-package-name', appName,
+            '--icon', macAppIcon.asFile.absolutePath
+    )
+}
