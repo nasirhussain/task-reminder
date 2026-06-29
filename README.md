@@ -51,6 +51,19 @@ Build a native macOS bundle with `jpackage`:
 ./gradlew packageMacDmg      # .dmg installer -> build/jpackage/dmg/
 ```
 
+Both tasks ad-hoc sign the finished bundle (`codesign --sign -`). Without this, some
+JDK builds (e.g. Azul Zulu 17) leave the launcher signed with the JDK's internal test
+certificate, which is an invalid seal — macOS Gatekeeper then refuses to open the app
+with "application is damaged". `packageMacDmg` wraps the already-signed `.app` image so
+the valid signature is preserved inside the installer.
+
+> **Downloaded copies.** Ad-hoc signing lets the app open locally, but it is not
+> notarized. If the `.dmg` is downloaded from the internet it picks up the
+> `com.apple.quarantine` flag, and macOS will still warn that the developer cannot be
+> verified. Right-click the app and choose **Open** once, or clear the flag with
+> `xattr -c "/Applications/Daily Task Reminder.app"`. Distributing without that prompt
+> requires an Apple Developer ID certificate plus notarization.
+
 ## Database
 
 The app stores tasks in a local SQLite database at `~/.task-reminder/tasks.sqlite`.

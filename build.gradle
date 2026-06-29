@@ -91,14 +91,17 @@ tasks.named('check') {
     dependsOn tasks.named('jacocoTestCoverageVerification')
 }
 
+def macAppName = 'Daily Task Reminder'
+def macAppImageDir = layout.buildDirectory.dir('jpackage/app')
+def macAppBundle = macAppImageDir.map { it.file("${macAppName}.app") }
+
 tasks.register('packageMacApp', Exec) {
     group = 'distribution'
     description = 'Creates a macOS .app image using jpackage.'
     dependsOn tasks.named('installDist')
 
-    def appName = 'Daily Task Reminder'
     def inputDir = layout.buildDirectory.dir('install/task-reminder/lib')
-    def outputDir = layout.buildDirectory.dir('jpackage/app')
+    def outputDir = macAppImageDir
 
     doFirst {
         delete(outputDir)
@@ -107,7 +110,7 @@ tasks.register('packageMacApp', Exec) {
     commandLine(
             'jpackage',
             '--type', 'app-image',
-            '--name', appName,
+            '--name', macAppName,
             '--input', inputDir.get().asFile.absolutePath,
             '--module-path', inputDir.get().asFile.absolutePath,
             '--add-modules', 'javafx.controls,javafx.fxml,java.sql',
@@ -116,37 +119,45 @@ tasks.register('packageMacApp', Exec) {
             '--dest', outputDir.get().asFile.absolutePath,
             '--app-version', version.toString().replace('-SNAPSHOT', ''),
             '--vendor', 'Valamis',
-            '--mac-package-name', appName,
+            '--mac-package-name', macAppName,
             '--icon', macAppIcon.asFile.absolutePath
     )
+
+    // Some JDK builds (e.g. Azul Zulu 17) leave the bundled launcher signed with the
+    // JDK's internal test certificate, which leaves an invalid signature seal. macOS
+    // Gatekeeper then refuses to open the app ("application is damaged"), especially
+    // once a download attaches the com.apple.quarantine flag. Re-sign the finished
+    // bundle ad-hoc so the seal is valid and the app launches from Finder.
+    doLast {
+        exec {
+            commandLine 'codesign', '--force', '--deep', '--sign', '-',
+                    macAppBundle.get().asFile.absolutePath
+        }
+    }
 }
 
 tasks.register('packageMacDmg', Exec) {
     group = 'distribution'
-    description = 'Creates a macOS .dmg installer using jpackage.'
-    dependsOn tasks.named('installDist')
+    description = 'Creates a macOS .dmg installer from the signed .app image using jpackage.'
+    dependsOn tasks.named('packageMacApp')
 
-    def appName = 'Daily Task Reminder'
-    def inputDir = layout.buildDirectory.dir('install/task-reminder/lib')
     def outputDir = layout.buildDirectory.dir('jpackage/dmg')
 
     doFirst {
         delete(outputDir)
     }
 
+    // Wrap the already-signed app image instead of rebuilding from jars, so the valid
+    // ad-hoc signature produced by packageMacApp is carried into the .dmg unchanged.
     commandLine(
             'jpackage',
             '--type', 'dmg',
-            '--name', appName,
-            '--input', inputDir.get().asFile.absolutePath,
-            '--module-path', inputDir.get().asFile.absolutePath,
-            '--add-modules', 'javafx.controls,javafx.fxml,java.sql',
-            '--main-jar', "task-reminder-${version}.jar",
-            '--main-class', application.mainClass.get(),
+            '--name', macAppName,
+            '--app-image', macAppBundle.get().asFile.absolutePath,
             '--dest', outputDir.get().asFile.absolutePath,
             '--app-version', version.toString().replace('-SNAPSHOT', ''),
             '--vendor', 'Valamis',
-            '--mac-package-name', appName,
+            '--mac-package-name', macAppName,
             '--icon', macAppIcon.asFile.absolutePath
     )
 }
