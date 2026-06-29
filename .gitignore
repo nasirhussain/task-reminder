@@ -29,3 +29,6 @@ bin/
 # Local runtime data (SQLite store is created under the user's home, never the repo)
 *.sqlite
 *.sqlite-journal
+
+# Distributable artifacts (published as GitHub Release assets, not tracked in git)
+/dist/
