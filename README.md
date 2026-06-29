@@ -2,6 +2,25 @@
 
 Lightweight Java 17 JavaFX desktop application for daily weekday task reminders.
 
+## Install (macOS)
+
+Download the latest `.dmg` from the [**Releases**](https://github.com/nasirhussain/task-reminder/releases/latest) page, then:
+
+1. Open the downloaded `.dmg`.
+2. Drag **Daily Task Reminder** into your **Applications** folder.
+3. **First launch only.** The app is ad-hoc signed but not notarized, so macOS
+   quarantines downloaded copies. Right-click the app → **Open** and confirm the
+   dialog, or clear the flag once from a terminal:
+
+   ```bash
+   xattr -c "/Applications/Daily Task Reminder.app"
+   ```
+
+After that it opens normally from Spotlight or the Dock. Your tasks are stored
+locally at `~/.task-reminder/tasks.sqlite`.
+
+> Prefer to build it yourself? See [Package (macOS)](#package-macos).
+
 ## Stack
 
 - **Java 17** (Gradle toolchain)
