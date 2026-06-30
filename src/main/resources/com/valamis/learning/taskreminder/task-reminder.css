@@ -219,6 +219,12 @@
     -fx-min-height: 36px;
 }
 
+.search-field {
+    -fx-min-height: 34px;
+    -fx-max-width: 260px;
+    -fx-prompt-text-fill: #94a3b8;
+}
+
 .text-area .content {
     -fx-background-color: #f8fafc;
     -fx-background-radius: 8;
@@ -230,6 +236,12 @@
 .date-picker:focused {
     -fx-border-color: #2563eb;
     -fx-effect: dropshadow(gaussian, rgba(37, 99, 235, 0.22), 8, 0.2, 0, 0);
+}
+
+.date-picker.field-error,
+.date-picker.field-error:focused {
+    -fx-border-color: #dc2626;
+    -fx-effect: dropshadow(gaussian, rgba(220, 38, 38, 0.22), 8, 0.2, 0, 0);
 }
 
 .button {

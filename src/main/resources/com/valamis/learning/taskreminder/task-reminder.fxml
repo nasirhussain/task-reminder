@@ -28,6 +28,7 @@
                 <Label text="Daily Task Reminder" styleClass="title"/>
                 <Label text="Plan the workday, postpone intentionally, and keep every task reachable." styleClass="subtitle"/>
             </VBox>
+            <TextField fx:id="searchField" promptText="Search tasks…" prefWidth="220" styleClass="search-field"/>
             <Button text="User Guide" onAction="#showUserGuide" styleClass="secondary-button"/>
             <Button text="Import Data" onAction="#importData" styleClass="secondary-button"/>
             <Button text="Export Data" onAction="#exportData" styleClass="secondary-button"/>

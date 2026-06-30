@@ -11,6 +11,8 @@ import com.valamis.learning.taskreminder.service.UpdateTaskRequest;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -23,6 +25,10 @@ public final class TaskListViewModel {
     private final ObservableList<TaskRowViewModel> openTasks = FXCollections.observableArrayList();
     private final ObservableList<TaskRowViewModel> holdTasks = FXCollections.observableArrayList();
     private final ObservableList<TaskRowViewModel> allTasks = FXCollections.observableArrayList();
+    private String searchQuery = "";
+    private List<Task> loadedOpenTasks = List.of();
+    private List<Task> loadedHoldTasks = List.of();
+    private List<Task> loadedAllTasks = List.of();
 
     public TaskListViewModel(TaskService taskService, TaskDataTransferService transferService, Clock clock) {
         this.taskService = Objects.requireNonNull(taskService, "taskService");
@@ -42,11 +48,40 @@ public final class TaskListViewModel {
         return allTasks;
     }
 
+    public void setSearchQuery(String query) {
+        searchQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+        applySearch();
+    }
+
     public void refresh() {
         DailyTasks dailyTasks = taskService.dailyTasks(LocalDate.now(clock));
-        openTasks.setAll(dailyTasks.openTasks().stream().map(TaskRowViewModel::from).toList());
-        holdTasks.setAll(dailyTasks.holdTasks().stream().map(TaskRowViewModel::from).toList());
-        allTasks.setAll(taskService.allTasks().stream().map(TaskRowViewModel::from).toList());
+        loadedOpenTasks = dailyTasks.openTasks();
+        loadedHoldTasks = dailyTasks.holdTasks();
+        loadedAllTasks = taskService.allTasks();
+        applySearch();
+    }
+
+    // Filters the already-loaded snapshot so typing in the search box never re-queries the
+    // database; refresh() reloads from the service whenever the underlying tasks change.
+    private void applySearch() {
+        openTasks.setAll(toMatchingRows(loadedOpenTasks));
+        holdTasks.setAll(toMatchingRows(loadedHoldTasks));
+        allTasks.setAll(toMatchingRows(loadedAllTasks));
+    }
+
+    private List<TaskRowViewModel> toMatchingRows(List<Task> tasks) {
+        return tasks.stream()
+                .filter(this::matchesSearch)
+                .map(TaskRowViewModel::from)
+                .toList();
+    }
+
+    private boolean matchesSearch(Task task) {
+        if (searchQuery.isEmpty()) {
+            return true;
+        }
+        return task.taskName().toLowerCase(Locale.ROOT).contains(searchQuery)
+                || task.remarks().toLowerCase(Locale.ROOT).contains(searchQuery);
     }
 
     public Task createTask(String taskName, String remarks, TaskStatus status, LocalDate reminderDate) {

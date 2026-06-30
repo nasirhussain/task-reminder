@@ -15,22 +15,26 @@ import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.Region;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
+import javafx.util.StringConverter;
 
 public final class TaskReminderController {
 
     private static final DateTimeFormatter UPDATED_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final String INVALID_FIELD_STYLE_CLASS = "field-error";
 
     private final TaskListViewModel viewModel;
 
     @FXML private TableView<TaskRowViewModel> openTable;
     @FXML private TableView<TaskRowViewModel> holdTable;
     @FXML private TableView<TaskRowViewModel> allTable;
+    @FXML private TextField searchField;
     @FXML private TextField taskNameField;
     @FXML private TextArea remarksArea;
     @FXML private ComboBox<TaskStatus> statusComboBox;
@@ -47,6 +51,7 @@ public final class TaskReminderController {
         configureTable(allTable);
         statusComboBox.getItems().setAll(TaskStatus.values());
         statusComboBox.setValue(TaskStatus.OPEN);
+        reminderDatePicker.setConverter(createReminderDateConverter());
 
         openTable.setItems(viewModel.openTasks());
         holdTable.setItems(viewModel.holdTasks());
@@ -54,7 +59,25 @@ public final class TaskReminderController {
         bindSelection(openTable);
         bindSelection(holdTable);
         bindSelection(allTable);
+        searchField.textProperty().addListener((observable, previous, query) -> viewModel.setSearchQuery(query));
+        reminderDatePicker.getEditor().textProperty().addListener(
+                (observable, previous, text) -> markReminderValidity(text));
         viewModel.refresh();
+    }
+
+    // Flags invalid reminder text the moment it is typed so the user gets immediate feedback,
+    // independent of when the DatePicker commits its editor on focus loss.
+    private void markReminderValidity(String text) {
+        boolean valid = true;
+        try {
+            ReminderDateParser.parse(text);
+        } catch (IllegalArgumentException exception) {
+            valid = false;
+        }
+        reminderDatePicker.getStyleClass().remove(INVALID_FIELD_STYLE_CLASS);
+        if (!valid) {
+            reminderDatePicker.getStyleClass().add(INVALID_FIELD_STYLE_CLASS);
+        }
     }
 
     @FXML
@@ -64,9 +87,15 @@ public final class TaskReminderController {
 
     @FXML
     private void saveTask() {
+        LocalDate reminderDate;
+        try {
+            reminderDate = ReminderDateParser.parse(reminderDatePicker.getEditor().getText()).orElse(null);
+        } catch (IllegalArgumentException exception) {
+            showWarning("Invalid Reminder Date", messageOf(exception));
+            return;
+        }
         try {
             TaskRowViewModel selected = selectedTask();
-            LocalDate reminderDate = reminderDatePicker.getValue();
             if (selected == null) {
                 viewModel.createTask(taskNameField.getText(), remarksArea.getText(), statusComboBox.getValue(), reminderDate);
             } else {
@@ -103,7 +132,7 @@ public final class TaskReminderController {
         TaskRowViewModel selected = selectedTask();
         if (selected != null) {
             viewModel.setReminderDate(selected.id(), null);
-            reminderDatePicker.setValue(null);
+            showReminder(null);
         }
     }
 
@@ -189,6 +218,15 @@ public final class TaskReminderController {
     }
 
     private void configureTable(TableView<TaskRowViewModel> table) {
+        table.setRowFactory(view -> {
+            TableRow<TaskRowViewModel> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && !row.isEmpty()) {
+                    taskNameField.requestFocus();
+                }
+            });
+            return row;
+        });
         for (TableColumn<TaskRowViewModel, ?> column : table.getColumns()) {
             switch (column.getId()) {
                 case "taskNameColumn" -> setStringCellFactory(column, TaskRowViewModel::taskName);
@@ -267,7 +305,7 @@ public final class TaskReminderController {
         taskNameField.setText(task.taskName());
         remarksArea.setText(task.remarks());
         statusComboBox.setValue(task.status());
-        reminderDatePicker.setValue(task.customReminderDate());
+        showReminder(task.customReminderDate());
     }
 
     private void clearForm() {
@@ -277,7 +315,28 @@ public final class TaskReminderController {
         taskNameField.clear();
         remarksArea.clear();
         statusComboBox.setValue(TaskStatus.OPEN);
-        reminderDatePicker.setValue(null);
+        showReminder(null);
+    }
+
+    // DatePicker.setValue(null) does not clear text the user typed into the editor without committing it,
+    // so the editor text is set explicitly to keep the value and the visible field in sync.
+    private void showReminder(LocalDate date) {
+        reminderDatePicker.setValue(date);
+        reminderDatePicker.getEditor().setText(ReminderDateParser.format(date));
+    }
+
+    static StringConverter<LocalDate> createReminderDateConverter() {
+        return new StringConverter<>() {
+            @Override
+            public String toString(LocalDate date) {
+                return ReminderDateParser.format(date);
+            }
+
+            @Override
+            public LocalDate fromString(String text) {
+                return ReminderDateParser.parse(text).orElse(null);
+            }
+        };
     }
 
     private void changeSelectedStatus(TaskStatus status) {
